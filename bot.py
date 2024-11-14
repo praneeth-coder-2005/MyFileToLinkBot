@@ -1,6 +1,15 @@
 from telegram import Update
 from telegram.ext import Updater, CommandHandler, MessageHandler, Filters, CallbackContext
+from flask import Flask
 import os
+
+# Initialize Flask app for a minimal web server
+app = Flask(__name__)
+
+# Route to handle the homepage, which prevents the H14 error
+@app.route("/")
+def index():
+    return "Bot is running!"
 
 # Environment variables for Heroku
 TOKEN = os.getenv("BOT_TOKEN")
@@ -22,8 +31,11 @@ def main():
     dispatcher.add_handler(CommandHandler("start", start))
     dispatcher.add_handler(MessageHandler(Filters.document | Filters.photo, handle_file))
 
+    # Start the bot
     updater.start_polling()
-    updater.idle()
+
+    # Start Flask web server
+    app.run(host="0.0.0.0", port=int(os.environ.get("PORT", 5000)))
 
 if __name__ == '__main__':
     main()
