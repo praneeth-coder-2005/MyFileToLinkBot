@@ -1,5 +1,6 @@
 from telegram import Update
 from telegram.ext import Updater, CommandHandler, MessageHandler, Filters, CallbackContext
+from flask import Flask, request
 import sqlite3
 import os
 import random
@@ -8,7 +9,11 @@ import string
 # Environment variables
 TELEGRAM_TOKEN = os.getenv("TELEGRAM_TOKEN")
 DB_CHANNEL = int(os.getenv("DB_CHANNEL"))  # Private Channel ID for storing files
-BASE_URL = "https://my-file-to-link-d1e1474ae14e.herokuapp.com/"  # Replace with your hosting URL
+BASE_URL = "https://my-file-to-link-d1e1474ae14e.herokuapp.com/"  # Replace with your Heroku app URL
+PORT = int(os.environ.get("PORT", 8443))
+
+# Initialize Flask app
+app = Flask(__name__)
 
 # Database connection
 def get_db_connection():
@@ -70,17 +75,26 @@ def serve_file(update: Update, context: CallbackContext) -> None:
     context.bot.forward_message(chat_id=update.message.chat_id, from_chat_id=DB_CHANNEL, message_id=file['message_id'])
     update.message.reply_text(f"Here is your file: {file['file_name']}")
 
-# Main function to set up the bot
-def main():
-    updater = Updater(TELEGRAM_TOKEN, use_context=True)
-    dispatcher = updater.dispatcher
+# Initialize the bot
+updater = Updater(TELEGRAM_TOKEN, use_context=True)
+dispatcher = updater.dispatcher
 
-    dispatcher.add_handler(CommandHandler("start", start))
-    dispatcher.add_handler(MessageHandler(Filters.document | Filters.photo | Filters.video, handle_file_upload))
-    dispatcher.add_handler(CommandHandler("getfile", serve_file))
+dispatcher.add_handler(CommandHandler("start", start))
+dispatcher.add_handler(MessageHandler(Filters.document | Filters.photo | Filters.video, handle_file_upload))
+dispatcher.add_handler(CommandHandler("getfile", serve_file))
 
-    updater.start_polling()
-    updater.idle()
+# Webhook endpoint for Telegram
+@app.route(f"/{TELEGRAM_TOKEN}", methods=["POST"])
+def webhook():
+    updater.bot.process_new_updates([Update.de_json(request.get_json(), updater.bot)])
+    return "OK", 200
 
-if __name__ == '__main__':
-    main()
+# Set up webhook on startup
+@app.before_first_request
+def setup_webhook():
+    webhook_url = f"{BASE_URL}/{TELEGRAM_TOKEN}"
+    updater.bot.set_webhook(url=webhook_url)
+
+# Start Flask app
+if __name__ == "__main__":
+    app.run(host="0.0.0.0", port=PORT)
