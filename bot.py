@@ -1,6 +1,6 @@
 from telegram import Update
 from telegram.ext import Updater, CommandHandler, MessageHandler, Filters, CallbackContext
-from flask import Flask, send_file, abort, redirect
+from flask import Flask, abort, redirect
 import os
 import requests
 import threading
