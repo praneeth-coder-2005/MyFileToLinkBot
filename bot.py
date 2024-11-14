@@ -1,72 +1,86 @@
 from telegram import Update
 from telegram.ext import Updater, CommandHandler, MessageHandler, Filters, CallbackContext
-from flask import Flask, redirect
+import sqlite3
 import os
-import threading
+import random
+import string
 
-# Telegram Bot Token
-TOKEN = os.getenv("BOT_TOKEN")
+# Environment variables
+TELEGRAM_TOKEN = os.getenv("TELEGRAM_TOKEN")
+DB_CHANNEL = int(os.getenv("DB_CHANNEL"))  # Private Channel ID for storing files
+BASE_URL = "https://your-app-name.herokuapp.com"  # Replace with your hosting URL
 
-# Initialize Flask App
-app = Flask(__name__)
+# Database connection
+def get_db_connection():
+    conn = sqlite3.connect('file_store.db')
+    conn.row_factory = sqlite3.Row
+    return conn
 
-# Initialize Telegram Bot Updater
-updater = Updater(TOKEN)
-dispatcher = updater.dispatcher
+# Generate a unique download link
+def generate_unique_link():
+    return ''.join(random.choices(string.ascii_letters + string.digits, k=10))
 
-# Dictionary to store message_id -> file_url mapping
-file_links = {}
-
-# Root Endpoint to Show Bot Status
-@app.route('/')
-def index():
-    return "File-to-Link Bot is Running!"
-
-# Start Command for the Bot
+# Start command
 def start(update: Update, context: CallbackContext) -> None:
-    update.message.reply_text("Send me any file, and I'll give you a direct download link! (Files can be up to 2GB)")
+    update.message.reply_text("Welcome to the File to Link Bot! Send me files up to 2GB, and I’ll give you a download link.")
 
-# Handle File Uploads and Generate Download Link
-def handle_file(update: Update, context: CallbackContext) -> None:
-    file = update.message.document or update.message.photo[-1]
+# Handle file uploads
+def handle_file_upload(update: Update, context: CallbackContext) -> None:
+    file = update.message.document or update.message.video or update.message.photo[-1]
     file_id = file.file_id
-    
-    # Generate a direct download link using Telegram's file URL
-    file_info = context.bot.get_file(file_id)
-    file_url = f"https://api.telegram.org/file/bot{TOKEN}/{file_info.file_path}"
-    
-    # Store the generated link for this specific message ID
-    message_id = update.message.message_id
-    file_links[message_id] = file_url
-    print(f"Stored file link for message_id {message_id}: {file_url}")
+    file_name = file.file_name if hasattr(file, 'file_name') else "file"
+    user_id = update.message.from_user.id
+    unique_link = generate_unique_link()
 
-    # Send the dynamic download link to the user
-    bot_url = f"https://my-file-to-link-d1e1474ae14e.herokuapp.com/download/{message_id}"
-    update.message.reply_text(f"Here is your download link: {bot_url}")
+    # Forward the file to the private channel
+    sent_message = context.bot.forward_message(chat_id=DB_CHANNEL, from_chat_id=update.message.chat_id, message_id=update.message.message_id)
+    message_id = sent_message.message_id
 
-# Route to Serve Files Using Message ID
-@app.route('/download/<int:message_id>')
-def serve_file(message_id):
-    # Check if the message_id exists in our file links dictionary
-    if message_id in file_links:
-        file_url = file_links[message_id]
-        print(f"Redirecting to file URL: {file_url}")
-        return redirect(file_url)
-    else:
-        print(f"File with message_id {message_id} not found.")
-        return "Error: File not found. Please re-upload.", 404
+    # Store file metadata in the database
+    conn = get_db_connection()
+    cursor = conn.cursor()
+    cursor.execute('INSERT INTO files (user_id, file_id, message_id, file_name, unique_link) VALUES (?, ?, ?, ?, ?)', 
+                   (user_id, file_id, message_id, file_name, unique_link))
+    conn.commit()
+    conn.close()
 
-# Start the Bot in a Separate Thread
-def start_bot():
-    print("Starting the Telegram bot...")
+    # Send the download link to the user
+    download_link = f"{BASE_URL}/download/{unique_link}"
+    update.message.reply_text(f"File '{file_name}' uploaded successfully.\nHere is your download link: {download_link}")
+
+# Serve files based on the unique link
+def serve_file(update: Update, context: CallbackContext) -> None:
+    unique_link = context.args[0] if context.args else None
+    if not unique_link:
+        update.message.reply_text("Please provide a valid file ID. Usage: /getfile <file_id>")
+        return
+
+    # Retrieve file metadata based on the unique link
+    conn = get_db_connection()
+    cursor = conn.cursor()
+    cursor.execute('SELECT * FROM files WHERE unique_link = ?', (unique_link,))
+    file = cursor.fetchone()
+    conn.close()
+
+    if not file:
+        update.message.reply_text("File not found.")
+        return
+
+    # Send the file to the user using the message ID in the private channel
+    context.bot.forward_message(chat_id=update.message.chat_id, from_chat_id=DB_CHANNEL, message_id=file['message_id'])
+    update.message.reply_text(f"Here is your file: {file['file_name']}")
+
+# Main function to set up the bot
+def main():
+    updater = Updater(TELEGRAM_TOKEN, use_context=True)
+    dispatcher = updater.dispatcher
+
     dispatcher.add_handler(CommandHandler("start", start))
-    dispatcher.add_handler(MessageHandler(Filters.document | Filters.photo, handle_file))
-    updater.start_polling()
+    dispatcher.add_handler(MessageHandler(Filters.document | Filters.photo | Filters.video, handle_file_upload))
+    dispatcher.add_handler(CommandHandler("getfile", serve_file))
 
-# Run both the Bot and Flask App
-if __name__ == "__main__":
-    # Start the bot in a separate thread
-    threading.Thread(target=start_bot).start()
-    print("Starting Flask server...")
-    # Run Flask directly without waitress
-    app.run(host="0.0.0.0", port=int(os.environ.get("PORT", 5000)))
+    updater.start_polling()
+    updater.idle()
+
+if __name__ == '__main__':
+    main()
