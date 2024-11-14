@@ -89,12 +89,11 @@ def webhook():
     updater.bot.process_new_updates([Update.de_json(request.get_json(), updater.bot)])
     return "OK", 200
 
-# Set up webhook on startup
-@app.before_first_request
-def setup_webhook():
+# Main function to set up the webhook and start the Flask server
+if __name__ == "__main__":
+    # Set up webhook
     webhook_url = f"{BASE_URL}/{TELEGRAM_TOKEN}"
     updater.bot.set_webhook(url=webhook_url)
-
-# Start Flask app
-if __name__ == "__main__":
+    
+    # Start Flask app to listen for requests
     app.run(host="0.0.0.0", port=PORT)
