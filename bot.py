@@ -31,7 +31,7 @@ def handle_file(update: Update, context: CallbackContext) -> None:
     # Send the file to the BIN_CHANNEL
     sent_message = context.bot.send_document(chat_id=BIN_CHANNEL, document=file.file_id)
     # Hardcode the download link to use your specified Heroku app URL
-    file_link = f"https://my-file-to-link-b4decad09203.herokuapp.com/dl/{sent_message.message_id}"
+    file_link = f"https://my-file-to-link-bot-b4decad09203.herokuapp.com/dl/{sent_message.message_id}"
     update.message.reply_text(f"Here is your download link: {file_link}")
     print(f"Generated link: {file_link}")
 
