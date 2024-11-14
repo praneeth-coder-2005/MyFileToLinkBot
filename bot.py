@@ -8,7 +8,7 @@ import string
 # Environment variables
 TELEGRAM_TOKEN = os.getenv("TELEGRAM_TOKEN")
 DB_CHANNEL = int(os.getenv("DB_CHANNEL"))  # Private Channel ID for storing files
-BASE_URL = "https://your-app-name.herokuapp.com"  # Replace with your hosting URL
+BASE_URL = "https://my-file-to-link-d1e1474ae14e.herokuapp.com/"  # Replace with your hosting URL
 
 # Database connection
 def get_db_connection():
