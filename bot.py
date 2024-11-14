@@ -15,51 +15,48 @@ app = Flask(__name__)
 updater = Updater(TOKEN)
 dispatcher = updater.dispatcher
 
-# Variable to store the latest message ID for the file
-latest_message_id = None
+# Dictionary to store message_id -> file_url mapping
+file_links = {}
 
-# Root Endpoint to serve the latest file
+# Root Endpoint to Show Bot Status
 @app.route('/')
 def index():
-    global latest_message_id
-    if latest_message_id is None:
-        return "No file has been uploaded yet."
-    else:
-        try:
-            # Retrieve the message from the channel using the latest message ID
-            file_message = updater.bot.get_chat(BIN_CHANNEL).get_message(latest_message_id)
-            file_id = file_message.document.file_id if file_message.document else file_message.photo[-1].file_id
-
-            # Fetch the file path from Telegram
-            file_info = updater.bot.get_file(file_id)
-            file_url = f"https://api.telegram.org/file/bot{TOKEN}/{file_info.file_path}"
-
-            # Redirect to the direct Telegram file URL
-            print(f"Redirecting to file URL: {file_url}")
-            return redirect(file_url)
-        except Exception as e:
-            print(f"Error serving file with message_id {latest_message_id}: {e}")
-            return "Error retrieving file. Please upload again.", 404
+    return "File-to-Link Bot is Running!"
 
 # Start Command for the Bot
 def start(update: Update, context: CallbackContext) -> None:
     update.message.reply_text("Send me any file, and I'll give you a direct download link!")
 
-# Handle File Uploads and Update Latest Message ID
+# Handle File Uploads and Generate Download Link
 def handle_file(update: Update, context: CallbackContext) -> None:
-    global latest_message_id
     file = update.message.document or update.message.photo[-1]
-    # Send the file to the BIN_CHANNEL and store the message ID
+    # Send the file to the BIN_CHANNEL and get the unique message ID
     sent_message = context.bot.send_document(chat_id=BIN_CHANNEL, document=file.file_id)
+    message_id = sent_message.message_id
     
-    # Update the latest message ID to the newly uploaded file's message ID
-    latest_message_id = sent_message.message_id
-    print(f"Updated latest message ID to: {latest_message_id}")
+    # Generate a direct download link using Telegram's file URL
+    file_info = context.bot.get_file(file.file_id)
+    file_url = f"https://api.telegram.org/file/bot{TOKEN}/{file_info.file_path}"
     
-    # Send the static link to the user
-    file_link = "https://my-file-to-link-d1e1474ae14e.herokuapp.com/"
-    update.message.reply_text(f"Here is your download link: {file_link}")
-    print(f"Sent download link: {file_link}")
+    # Store the generated link for this specific message ID
+    file_links[message_id] = file_url
+    print(f"Stored file link for message_id {message_id}: {file_url}")
+    
+    # Send the dynamic download link to the user
+    bot_url = f"https://my-file-to-link-d1e1474ae14e.herokuapp.com/download/{message_id}"
+    update.message.reply_text(f"Here is your download link: {bot_url}")
+
+# Route to Serve Files Using Message ID
+@app.route('/download/<int:message_id>')
+def serve_file(message_id):
+    # Check if the message_id exists in our file links dictionary
+    if message_id in file_links:
+        file_url = file_links[message_id]
+        print(f"Redirecting to file URL: {file_url}")
+        return redirect(file_url)
+    else:
+        print(f"File with message_id {message_id} not found.")
+        return "Error: File not found. Please re-upload.", 404
 
 # Start the Bot in a Separate Thread
 def start_bot():
