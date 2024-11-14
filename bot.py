@@ -11,7 +11,7 @@ import time
 # Environment variables
 TELEGRAM_TOKEN = os.getenv("TELEGRAM_TOKEN")
 DB_CHANNEL = int(os.getenv("DB_CHANNEL"))  # Private Channel ID for storing files
-BASE_URL = "https://my-file-to-link-d1e1474ae14e.herokuapp.com/"  # Replace with your Heroku app URL
+BASE_URL = "https://my-file-to-link-d1e1474ae14e.herokuapp.com"  # Your Heroku app URL
 PORT = int(os.environ.get("PORT", 8443))
 
 # Initialize Flask app
@@ -101,7 +101,8 @@ dispatcher.add_handler(CommandHandler("getfile", serve_file))
 # Webhook endpoint for Telegram
 @app.route(f"/{TELEGRAM_TOKEN}", methods=["POST"])
 def webhook():
-    updater.bot.process_new_updates([Update.de_json(request.get_json(), updater.bot)])
+    json_update = Update.de_json(request.get_json(), updater.bot)
+    dispatcher.process_update(json_update)
     return "OK", 200
 
 # Main function to set up the webhook and start the Flask server
