@@ -1,6 +1,6 @@
 from telegram import Update
 from telegram.ext import Updater, CommandHandler, MessageHandler, Filters, CallbackContext
-from flask import Flask, send_file, abort
+from flask import Flask, send_file, abort, redirect
 import os
 import requests
 import threading
@@ -24,25 +24,27 @@ def start(update: Update, context: CallbackContext) -> None:
 def handle_file(update: Update, context: CallbackContext) -> None:
     file = update.message.document or update.message.photo[-1]
     sent_message = context.bot.send_document(chat_id=BIN_CHANNEL, document=file.file_id)
-    file_link = f"https://{os.getenv('HEROKU_APP_NAME')}.herokuapp.com/file/{sent_message.message_id}"
+    # Create a download link in a shortened format
+    file_link = f"https://{os.getenv('HEROKU_APP_NAME')}.herokuapp.com/dl/{sent_message.message_id}"
     update.message.reply_text(f"Here is your download link: {file_link}")
 
-# Flask Route to Serve Files
-@app.route('/file/<int:message_id>')
+# Route to Serve Files with Shortened Link
+@app.route('/dl/<int:message_id>')
 def serve_file(message_id):
     try:
         bot_token = os.getenv("BOT_TOKEN")
-        file_url = f"https://api.telegram.org/bot{bot_token}/getFile?file_id={message_id}"
-        
-        # Retrieve file path from Telegram API
-        response = requests.get(file_url).json()
-        file_path = response['result']['file_path']
-        
-        # Construct direct file download URL
-        download_url = f"https://api.telegram.org/file/bot{bot_token}/{file_path}"
-        return send_file(download_url, as_attachment=True)
+        # Retrieve file ID from the channel message
+        file_message = updater.bot.get_chat(BIN_CHANNEL).get_message(message_id)
+        file_id = file_message.document.file_id if file_message.document else file_message.photo[-1].file_id
+
+        # Fetch the file path from Telegram
+        file_info = updater.bot.get_file(file_id)
+        file_url = f"https://api.telegram.org/file/bot{bot_token}/{file_info.file_path}"
+
+        # Redirect to the direct Telegram file URL
+        return redirect(file_url)
     except:
-        abort(404)  # If file not found or another error occurs
+        abort(404)  # Return 404 if the file is not found or an error occurs
 
 # Start the Bot in a Separate Thread
 def start_bot():
