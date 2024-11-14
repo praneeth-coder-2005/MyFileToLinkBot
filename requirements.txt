@@ -1,4 +1,4 @@
-python-telegram-bot==13.7
-flask
+Flask==2.1.0
+python-telegram-bot==13.11
 requests
 urllib3==1.26.6
