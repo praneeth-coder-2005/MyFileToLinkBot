@@ -33,11 +33,13 @@ def handle_file(update: Update, context: CallbackContext) -> None:
     # Generate a shortened download link
     file_link = f"https://{os.getenv('HEROKU_APP_NAME')}.herokuapp.com/dl/{sent_message.message_id}"
     update.message.reply_text(f"Here is your download link: {file_link}")
+    print(f"Generated link: {file_link}")
 
 # Route to Serve Files with Shortened Link
 @app.route('/dl/<int:message_id>')
 def serve_file(message_id):
     try:
+        print(f"Attempting to serve file with message_id: {message_id}")
         # Retrieve the message from the channel using the message ID
         file_message = updater.bot.get_chat(BIN_CHANNEL).get_message(message_id)
         file_id = file_message.document.file_id if file_message.document else file_message.photo[-1].file_id
@@ -48,17 +50,21 @@ def serve_file(message_id):
 
         # Redirect to the direct Telegram file URL
         return redirect(file_url)
-    except:
+    except Exception as e:
+        print(f"Error serving file with message_id {message_id}: {e}")
         abort(404)  # If file is not found or an error occurs
 
 # Start the Bot in a Separate Thread
 def start_bot():
+    print("Starting the Telegram bot...")
     dispatcher.add_handler(CommandHandler("start", start))
     dispatcher.add_handler(MessageHandler(Filters.document | Filters.photo, handle_file))
     updater.start_polling()
 
 # Run both the Bot and Flask App
 if __name__ == "__main__":
+    # Start the bot in a separate thread
     threading.Thread(target=start_bot).start()
-    from waitress import serve
-    serve(app, host="0.0.0.0", port=int(os.environ.get("PORT", 5000)))
+    print("Starting Flask server...")
+    # Run Flask directly without waitress
+    app.run(host="0.0.0.0", port=int(os.environ.get("PORT", 5000)))
