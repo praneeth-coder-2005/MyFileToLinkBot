@@ -1,12 +1,11 @@
 from telegram import Update
 from telegram.ext import Updater, CommandHandler, MessageHandler, Filters, CallbackContext
-from flask import Flask, abort, redirect
+from flask import Flask, redirect
 import os
 import threading
 
-# Telegram Bot Token and Channel ID
+# Telegram Bot Token
 TOKEN = os.getenv("BOT_TOKEN")
-BIN_CHANNEL = int(os.getenv("BIN_CHANNEL"))
 
 # Initialize Flask App
 app = Flask(__name__)
@@ -25,23 +24,22 @@ def index():
 
 # Start Command for the Bot
 def start(update: Update, context: CallbackContext) -> None:
-    update.message.reply_text("Send me any file, and I'll give you a direct download link!")
+    update.message.reply_text("Send me any file, and I'll give you a direct download link! (Files can be up to 2GB)")
 
 # Handle File Uploads and Generate Download Link
 def handle_file(update: Update, context: CallbackContext) -> None:
     file = update.message.document or update.message.photo[-1]
-    # Send the file to the BIN_CHANNEL and get the unique message ID
-    sent_message = context.bot.send_document(chat_id=BIN_CHANNEL, document=file.file_id)
-    message_id = sent_message.message_id
+    file_id = file.file_id
     
     # Generate a direct download link using Telegram's file URL
-    file_info = context.bot.get_file(file.file_id)
+    file_info = context.bot.get_file(file_id)
     file_url = f"https://api.telegram.org/file/bot{TOKEN}/{file_info.file_path}"
     
     # Store the generated link for this specific message ID
+    message_id = update.message.message_id
     file_links[message_id] = file_url
     print(f"Stored file link for message_id {message_id}: {file_url}")
-    
+
     # Send the dynamic download link to the user
     bot_url = f"https://my-file-to-link-d1e1474ae14e.herokuapp.com/download/{message_id}"
     update.message.reply_text(f"Here is your download link: {bot_url}")
