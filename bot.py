@@ -11,7 +11,7 @@ import time
 # Environment variables
 TELEGRAM_TOKEN = os.getenv("TELEGRAM_TOKEN")
 DB_CHANNEL = int(os.getenv("DB_CHANNEL"))  # Private Channel ID for storing files
-BASE_URL = "https://your-app-name.herokuapp.com"  # Replace with your Heroku app URL
+BASE_URL = "https://my-file-to-link-d1e1474ae14e.herokuapp.com/"  # Replace with your Heroku app URL
 PORT = int(os.environ.get("PORT", 8443))
 
 # Initialize Flask app
